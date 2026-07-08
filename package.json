@@ -8,6 +8,7 @@
     "start": "node System/Scripts/setup/onboard.js",
     "setup": "node System/Scripts/setup/onboard.js",
     "validate": "node System/Scripts/validate/validate-starter.js",
+    "validate:vault": "node System/Scripts/validate/validate-starter.js --mode vault",
     "test": "node --test System/Scripts/test/*.test.js"
   },
   "engines": {

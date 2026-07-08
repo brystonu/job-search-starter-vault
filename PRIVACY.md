@@ -11,6 +11,10 @@ This starter is designed to be safe to share before it contains user data.
 - Facts, inferences, claims to verify, and missing inputs stay separate.
 - The fictional demo is the only included example content.
 
+## Personal Vault Lives Outside The Starter
+
+The wizard now defaults to generating the personal vault outside this clone, in a sibling folder (default `../My Job Search Vault`) with no git remote. This is the primary protection: personal data never sits inside the public starter repo. `Private/` inside a vault remains git-ignored for opted-in source storage.
+
 ## Do Not Add To A Public Starter
 
 - Real applications

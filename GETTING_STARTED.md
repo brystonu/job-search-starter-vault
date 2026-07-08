@@ -9,9 +9,11 @@
 Set up this job-search Memex for me using my resume and job-search docs.
 ```
 
-3. Provide your resume as pasted text or a `.txt` / `.md` file.
-4. Add optional job-search artifacts if you have them.
-5. Open `01 Start Here/Start Here.md` in Obsidian when setup finishes.
+3. Answer a few quick questions from the agent: target roles, industries, location or remote constraints, deal-breakers, and your weekly review day. Skip any you are not sure about.
+4. Provide your resume as pasted text or a `.txt` / `.md` / `.docx` file. For a PDF, paste the text or re-save it as `.docx` or `.txt`.
+5. Add optional job-search artifacts if you have them.
+6. Everything is generated into a new folder next to this one: `../My Job Search Vault`.
+7. Open that folder (not this starter) in Obsidian, then open `01 Start Here/Start Here.md`.
 
 ## Fastest Local Command
 
@@ -19,7 +21,7 @@ Set up this job-search Memex for me using my resume and job-search docs.
 npm start
 ```
 
-This starts the same onboarding wizard.
+This starts the same onboarding wizard. It creates your personal vault next to this folder, at `../My Job Search Vault` by default.
 
 ## Manual Path
 

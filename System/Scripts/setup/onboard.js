@@ -2,7 +2,25 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import readline from "node:readline/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import { stdin as input, stdout as output } from "node:process";
+import { extractDocxText } from "./docx.js";
+
+const execFileAsync = promisify(execFile);
+const STARTER_ROOT = path.resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+const DEFAULT_VAULT_DIRNAME = "My Job Search Vault";
+
+const SCAFFOLD_PATHS = [
+  "System/Templates",
+  "System/Prompts",
+  "System/Bases",
+  "System/Workflows",
+  "System/Scripts",
+  ".gitignore",
+  "PRIVACY.md"
+];
 
 const ARTIFACT_TYPES = new Set([
   "resume",
@@ -22,7 +40,15 @@ const DEFAULT_OPTIONS = {
   resumeText: "",
   artifacts: [],
   yes: false,
-  storeSources: false
+  storeSources: false,
+  targetRoles: "",
+  industries: "",
+  location: "",
+  dealBreakers: "",
+  reviewDay: "",
+  aiHelp: "",
+  inPlace: false,
+  keepRemote: false
 };
 
 function parseArgs(argv) {
@@ -31,10 +57,18 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === "--yes" || arg === "-y") options.yes = true;
     else if (arg === "--store-sources") options.storeSources = true;
+    else if (arg === "--in-place") options.inPlace = true;
+    else if (arg === "--keep-remote") options.keepRemote = true;
     else if (arg === "--name") options.name = argv[++i] ?? "";
     else if (arg === "--output") options.output = argv[++i] ?? process.cwd();
     else if (arg === "--resume-file") options.resumeFile = argv[++i] ?? "";
     else if (arg === "--resume-text") options.resumeText = argv[++i] ?? "";
+    else if (arg === "--target-roles") options.targetRoles = argv[++i] ?? "";
+    else if (arg === "--industries") options.industries = argv[++i] ?? "";
+    else if (arg === "--location") options.location = argv[++i] ?? "";
+    else if (arg === "--deal-breakers") options.dealBreakers = argv[++i] ?? "";
+    else if (arg === "--review-day") options.reviewDay = argv[++i] ?? "";
+    else if (arg === "--ai-help") options.aiHelp = argv[++i] ?? "";
     else if (arg === "--artifact") options.artifacts.push(parseArtifactArg(argv[++i] ?? ""));
   }
   return options;
@@ -58,6 +92,11 @@ async function main() {
     const model = buildModel(answers);
     await writeVault(model, answers);
     await maybeStoreSources(answers);
+    if (await isStarterRoot(answers.output)) {
+      await maybeRenameStarterRemote(answers);
+    } else {
+      await exportVaultScaffold(STARTER_ROOT, answers.output);
+    }
     printSummary(answers.output, model);
   } finally {
     rl?.close();
@@ -68,13 +107,10 @@ async function collectInputs(options, rl) {
   const answers = {
     ...options,
     output: path.resolve(options.output),
-    targetRoles: "",
-    industries: "",
-    location: "",
-    dealBreakers: "",
-    weeklyReviewDay: "Friday",
-    aiHelpLevel: "drafting and review"
+    weeklyReviewDay: options.reviewDay || "Friday",
+    aiHelpLevel: options.aiHelp || "drafting and review"
   };
+  answers.output = await resolveOutputDir(answers, rl);
 
   if (rl) {
     answers.name ||= await ask(rl, "Preferred name or label for this vault", "Job Seeker");
@@ -83,15 +119,15 @@ async function collectInputs(options, rl) {
       if (mode.toLowerCase().startsWith("paste")) {
         answers.resumeText = await askMultiline(rl, "Paste resume text. Type END on its own line when done.");
       } else if (!mode.toLowerCase().startsWith("skip")) {
-        answers.resumeFile = await ask(rl, "Resume .txt or .md path", "");
+        answers.resumeFile = await ask(rl, "Resume .txt, .md, or .docx path", "");
       }
     }
-    answers.targetRoles = await ask(rl, "Target roles or role families", "");
-    answers.industries = await ask(rl, "Target industries or company types", "");
-    answers.location = await ask(rl, "Location or remote constraints", "");
-    answers.dealBreakers = await ask(rl, "Deal-breakers or constraints", "");
-    answers.weeklyReviewDay = await ask(rl, "Weekly review day", answers.weeklyReviewDay);
-    answers.aiHelpLevel = await ask(rl, "Preferred AI help level", answers.aiHelpLevel);
+    answers.targetRoles ||= await ask(rl, "Target roles or role families", "");
+    answers.industries ||= await ask(rl, "Target industries or company types", "");
+    answers.location ||= await ask(rl, "Location or remote constraints", "");
+    answers.dealBreakers ||= await ask(rl, "Deal-breakers or constraints", "");
+    if (!options.reviewDay) answers.weeklyReviewDay = await ask(rl, "Weekly review day", answers.weeklyReviewDay);
+    if (!options.aiHelp) answers.aiHelpLevel = await ask(rl, "Preferred AI help level", answers.aiHelpLevel);
     answers.storeSources = (await ask(rl, "Store raw source documents in Private/? yes/no", "no")).toLowerCase().startsWith("y");
 
     while ((await ask(rl, "Add another artifact? yes/no", "no")).toLowerCase().startsWith("y")) {
@@ -125,6 +161,89 @@ async function askMultiline(rl, prompt) {
   return lines.join("\n");
 }
 
+async function resolveOutputDir(answers, rl) {
+  const resolved = path.resolve(answers.output);
+  if (answers.inPlace || !(await isStarterRoot(resolved))) return resolved;
+
+  const fallback = path.resolve(resolved, "..", DEFAULT_VAULT_DIRNAME);
+  if (rl) {
+    output.write("Your personal vault is created next to this starter, which keeps personal data out of the public starter clone.\n");
+    const chosen = await ask(rl, "Personal vault folder (created next to this starter)", `../${DEFAULT_VAULT_DIRNAME}`);
+    return path.resolve(resolved, chosen);
+  }
+  output.write(`Notice: the output folder is the public starter clone, so personal notes were redirected to ${fallback} to keep personal data out of it. Pass --in-place to write into the starter anyway.\n`);
+  return fallback;
+}
+
+async function isStarterRoot(dir) {
+  return (await exists(path.join(dir, "AI_ONBOARDING.md"))) &&
+    (await exists(path.join(dir, "System/Scripts/setup/onboard.js")));
+}
+
+async function exists(target) {
+  try {
+    await fs.access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function exportVaultScaffold(starterRoot, outputDir) {
+  if (path.resolve(starterRoot) === path.resolve(outputDir)) return;
+  for (const relativePath of SCAFFOLD_PATHS) {
+    await copyIfMissing(path.join(starterRoot, relativePath), path.join(outputDir, relativePath));
+  }
+  const packagePath = path.join(outputDir, "package.json");
+  if (!(await exists(packagePath))) {
+    await fs.writeFile(packagePath, `${JSON.stringify(vaultPackageJson(), null, 2)}\n`, "utf8");
+  }
+}
+
+async function copyIfMissing(source, destination) {
+  const stats = await fs.stat(source).catch(() => null);
+  if (!stats) return;
+  if (stats.isDirectory()) {
+    await fs.mkdir(destination, { recursive: true });
+    for (const entry of await fs.readdir(source)) {
+      await copyIfMissing(path.join(source, entry), path.join(destination, entry));
+    }
+  } else if (!(await exists(destination))) {
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.copyFile(source, destination);
+  }
+}
+
+function vaultPackageJson() {
+  return {
+    name: "my-job-search-vault",
+    private: true,
+    type: "module",
+    scripts: {
+      validate: "node System/Scripts/validate/validate-starter.js --mode vault"
+    },
+    engines: {
+      node: ">=20"
+    }
+  };
+}
+
+async function maybeRenameStarterRemote(answers) {
+  if (answers.keepRemote) {
+    output.write("Kept the git remote origin unchanged (--keep-remote). Be careful not to push personal notes to the public starter repo.\n");
+    return;
+  }
+  if (!(await exists(path.join(answers.output, ".git")))) return;
+  try {
+    const { stdout } = await execFileAsync("git", ["remote"], { cwd: answers.output });
+    if (!stdout.split(/\r?\n/).includes("origin")) return;
+    await execFileAsync("git", ["remote", "rename", "origin", "starter-origin"], { cwd: answers.output });
+    output.write("Renamed the git remote origin to starter-origin so an accidental git push cannot publish personal notes to the public starter repo. Pass --keep-remote to skip this.\n");
+  } catch {
+    // git is unavailable or the rename failed; nothing safe to do here.
+  }
+}
+
 async function readResume(answers) {
   if (answers.resumeText) return { text: answers.resumeText, source: "pasted resume text" };
   if (!answers.resumeFile) return { text: "", source: "not provided" };
@@ -144,10 +263,12 @@ async function readArtifacts(artifacts) {
 
 async function readSupportedTextFile(file) {
   const ext = path.extname(file).toLowerCase();
-  if (![".txt", ".md"].includes(ext)) {
-    throw new Error(`Unsupported file type for ${file}. Use pasted text, .txt, or .md for v1.`);
+  if ([".txt", ".md"].includes(ext)) return fs.readFile(path.resolve(file), "utf8");
+  if (ext === ".docx") return extractDocxText(path.resolve(file));
+  if ([".pdf", ".doc"].includes(ext)) {
+    throw new Error(`I cannot read ${path.basename(file)} directly. Open the file, select all the text, copy it, and re-run this setup choosing the paste option - or re-save the file as .docx or .txt and try again.`);
   }
-  return fs.readFile(path.resolve(file), "utf8");
+  throw new Error(`Unsupported file type for ${file}. Use pasted text, .txt, .md, or .docx.`);
 }
 
 function buildModel(answers) {
@@ -165,24 +286,42 @@ function buildModel(answers) {
   };
 }
 
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+const PHONE_PATTERN = /(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/;
+
+function isContactLine(line) {
+  return EMAIL_PATTERN.test(line) || PHONE_PATTERN.test(line) || /linkedin\.com/i.test(line);
+}
+
 function extractResumeFacts(text) {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] ?? "";
-  const phone = text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/)?.[0] ?? "";
-  const metrics = lines.filter((line) => /\d/.test(line)).slice(0, 12);
+  const email = text.match(EMAIL_PATTERN)?.[0] ?? "";
+  const phone = text.match(PHONE_PATTERN)?.[0] ?? "";
+  const metrics = lines
+    .filter((line) => /\d/.test(line) && !isContactLine(line) && line.length <= 220)
+    .slice(0, 12);
   const skills = inferSkills(text);
-  const roleLines = lines.filter((line) =>
-    /\b(manager|director|lead|principal|senior|engineer|designer|analyst|consultant|specialist|founder|operator|product|program|project|marketing|sales|data|operations)\b/i.test(line)
-  ).slice(0, 16);
+  const roleLines = extractRoleLines(lines);
+  const summary = lines.slice(0, 5).find((line) => line.length >= 120) ?? "";
 
   return {
     email,
     phone,
     headline: lines[0] ?? "",
+    summary,
     roleLines,
     metrics,
     skills
   };
+}
+
+function extractRoleLines(lines) {
+  const candidates = lines.filter((line) => !isContactLine(line));
+  const titleAndDates = candidates.filter((line) => /^.{3,80}\|[^|]*\d{4}/.test(line));
+  if (titleAndDates.length) return titleAndDates.slice(0, 16);
+  return candidates.filter((line) =>
+    /\b(manager|director|lead|principal|senior|engineer|designer|analyst|consultant|specialist|founder|operator|product|program|project|marketing|sales|data|operations)\b/i.test(line)
+  ).slice(0, 16);
 }
 
 function inferSkills(text) {
@@ -326,11 +465,12 @@ function jobSearchHub(model, answers) {
 
 function canonicalResume(model, answers) {
   const resume = answers.resume.text.trim() || "No resume source provided yet.";
-  return `${yamlBase("synthesis", "canonical_resume", model)}# Canonical Resume\n\nSource: ${answers.resume.source}\n\n## Current Resume Text\n\n${resume}\n\n## Claims To Verify\n\n${list(model.claimsToVerify)}\n\n## Missing Inputs\n\n${list(model.missingInputs)}\n`;
+  return `${yamlBase("synthesis", "canonical_resume", model)}# Canonical Resume\n\nSource: ${answers.resume.source}\n\n## Current Resume Text\n\n${resume}\n\n## Claims To Verify\n\nSee [[Resume Evidence Bank]] for the claims-to-verify list.\n\n## Missing Inputs\n\n${list(model.missingInputs)}\n`;
 }
 
 function evidenceBank(model) {
-  return `${yamlBase("synthesis", "resume_evidence_bank", model)}# Resume Evidence Bank\n\n## Extracted Headline\n\n${model.resumeFacts.headline || "-"}\n\n## Role / Scope Signals\n\n${list(model.resumeFacts.roleLines)}\n\n## Skills And Themes\n\n${list(model.resumeFacts.skills)}\n\n## Metrics / Dates / Numbers To Verify\n\n${list(model.resumeFacts.metrics)}\n\n## Personalized Resume Families\n\n${model.resumeFamilies.map((family) => `- \`${family.id}\`: ${family.label} - ${family.reason}`).join("\n")}\n\n## Claims To Verify\n\n${list(model.claimsToVerify)}\n`;
+  const summarySection = model.resumeFacts.summary ? `## Positioning Summary\n\n${model.resumeFacts.summary}\n\n` : "";
+  return `${yamlBase("synthesis", "resume_evidence_bank", model)}# Resume Evidence Bank\n\n## Extracted Headline\n\n${model.resumeFacts.headline || "-"}\n\n${summarySection}## Role / Scope Signals\n\n${list(model.resumeFacts.roleLines)}\n\n## Skills And Themes\n\n${list(model.resumeFacts.skills)}\n\n## Metrics / Dates / Numbers To Verify\n\n${list(model.resumeFacts.metrics)}\n\n## Personalized Resume Families\n\n${model.resumeFamilies.map((family) => `- \`${family.id}\`: ${family.label} - ${family.reason}`).join("\n")}\n\n## Claims To Verify\n\n${list(model.claimsToVerify)}\n`;
 }
 
 function candidateMarketFit(model, answers) {
@@ -371,6 +511,11 @@ function sanitizeFileName(value) {
 function printSummary(root, model) {
   output.write(`\nJob-search Memex setup complete.\n\n`);
   output.write(`Created starter notes in: ${root}\n`);
+  output.write(`Next actions:\n`);
+  output.write(`1. Fill in target roles, industries, and constraints in 02 Projects/Job Search.md\n`);
+  output.write(`2. Resolve the Claims To Verify in 06 Synthesis/Career/Resume Evidence Bank.md\n`);
+  output.write(`3. Complete the first weekly review in 01 Reviews/Weekly/\n`);
+  output.write(`Open the vault folder in Obsidian (Open folder as vault) to get started.\n`);
   output.write(`Open next: 01 Start Here/Start Here.md\n\n`);
   output.write(`Resume families:\n${model.resumeFamilies.map((family) => `- ${family.id}: ${family.label}`).join("\n")}\n`);
   if (model.missingInputs.length) {

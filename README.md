@@ -24,6 +24,10 @@ If you do not know whether Node.js is installed, try the double-click launcher f
 
 ## What Setup Creates
 
+By default the wizard creates your personal vault in a new folder next to this one (default `../My Job Search Vault`). It copies the System files the vault needs (Templates, Prompts, Bases, Workflows, Scripts) plus its own `package.json`, so the vault is standalone and has no git remote. Your personal data never lands in this public starter. Advanced users can pass `--in-place` to set up inside the starter clone instead.
+
+Inside the generated vault:
+
 - `02 Projects/Job Search.md`
 - `06 Synthesis/Career/Canonical Resume.md`
 - `06 Synthesis/Career/Resume Evidence Bank.md`
@@ -36,7 +40,7 @@ All generated notes are marked for review. The setup wizard separates facts, inf
 
 ## Inputs
 
-The wizard supports pasted text, `.txt`, and `.md` files.
+The wizard supports pasted text, `.txt`, `.md`, and `.docx` files.
 
 Recommended first input:
 
@@ -53,7 +57,12 @@ Optional inputs:
 - Job-search strategy drafts
 - Prior application trackers
 
-`.pdf` and `.docx` ingestion is intentionally not included in v1. Convert those files to text first, or paste the relevant text.
+`.pdf` files are not parsed. Paste the relevant text instead, or re-save the file as `.docx` or `.txt`.
+
+## Validation
+
+- `npm run validate` checks the starter itself, including a scan for private strings. Use it if you contribute to the template.
+- `npm run validate:vault` checks a personal vault: frontmatter and review gating only, so a personalized vault passes cleanly. The generated vault's own `npm run validate` runs this mode.
 
 ## Privacy
 
