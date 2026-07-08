@@ -1,0 +1,16 @@
+{
+  "name": "job-search-memex-starter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A public-safe, AI-assisted job-search Memex starter vault.",
+  "type": "module",
+  "scripts": {
+    "start": "node System/Scripts/setup/onboard.js",
+    "setup": "node System/Scripts/setup/onboard.js",
+    "validate": "node System/Scripts/validate/validate-starter.js",
+    "test": "node --test System/Scripts/test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

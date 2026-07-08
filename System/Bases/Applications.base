@@ -1,0 +1,50 @@
+filters:
+  and:
+    - type == "object"
+    - kind == "application"
+views:
+  - type: table
+    name: Active Pipeline
+    filters:
+      and:
+        - stage != "applied"
+        - stage != "rejected"
+        - stage != "withdrawn"
+        - stage != "archived"
+    groupBy:
+      property: stage
+      direction: ASC
+    order:
+      - file.name
+      - company
+      - role
+      - stage
+      - match_score
+      - recommendation
+      - posting_status
+      - review_needed
+      - next_action
+      - next_action_date
+  - type: table
+    name: Needs Decision
+    filters:
+      and:
+        - review_needed == true
+    order:
+      - file.name
+      - company
+      - role
+      - match_score
+      - recommendation
+      - next_action
+  - type: table
+    name: Applied History
+    filters:
+      and:
+        - date_applied
+    order:
+      - date_applied
+      - company
+      - role
+      - stage
+      - submitted_resume_filename

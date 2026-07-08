@@ -1,0 +1,15 @@
+filters:
+  and:
+    - type == "object"
+    - kind == "company"
+views:
+  - type: table
+    name: Target Companies
+    order:
+      - file.name
+      - tier
+      - priority
+      - industry
+      - thesis
+      - next_action
+      - next_action_date

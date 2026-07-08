@@ -1,0 +1,15 @@
+filters:
+  and:
+    - type == "object"
+    - kind == "conversation"
+views:
+  - type: table
+    name: Conversation Follow-Ups
+    order:
+      - date
+      - people
+      - company
+      - cmf_signal
+      - market_objection
+      - next_action
+      - next_action_date
