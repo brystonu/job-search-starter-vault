@@ -94,6 +94,10 @@ flowchart LR
     SK --> WR
 ```
 
+### Growing your vault (week 2 and beyond)
+
+The starter ships deliberately small. Once you've used it for a week, the weekly review asks one extra question — *what annoyed you about the system itself?* — and that's your cue to have your AI assistant improve it: refine the fit scoring to match your gut, generate interview prep packs, add a follow-up tracker. `System/Workflows/Ideas To Grow Your Vault.md` is a menu of starter prompts for exactly this, and `System/Workflows/Vault Evolution.md` is the contract your assistant follows so every change stays small, explained, and reversible. Building these pieces yourself, when you actually need them, is also the gentlest way to learn what agentic coding tools can do.
+
 ## Quick Start
 
 ### Path 1: With an AI coding tool (easiest)
@@ -152,6 +156,8 @@ Start with your **resume**. Optionally add: a Candidate-Market Fit worksheet, Ne
 `.pdf` files are not parsed — copy-paste the text instead, or re-save the file as `.docx` or `.txt`.
 
 ## Working With an AI Assistant
+
+This starter is agent-agnostic: it works the same with Claude Code, Codex, Cursor, OpenCode, and similar tools. The agent contract lives in `AGENTS.md` (which Codex, OpenCode, and newer Cursor read directly), mirrored via `CLAUDE.md` for Claude Code and `.cursor/rules/` for Cursor — and your generated vault gets its own copies, so whichever tool you open it with later follows the same rules.
 
 `AI_ONBOARDING.md` is the contract an AI assistant follows here. The short version of its guardrails:
 

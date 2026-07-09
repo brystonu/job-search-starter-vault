@@ -198,6 +198,51 @@ async function exportVaultScaffold(starterRoot, outputDir) {
   if (!(await exists(packagePath))) {
     await fs.writeFile(packagePath, `${JSON.stringify(vaultPackageJson(), null, 2)}\n`, "utf8");
   }
+  await writeIfMissing(outputDir, "AGENTS.md", vaultAgentsMd());
+  await writeIfMissing(outputDir, "CLAUDE.md", vaultClaudeMd());
+  await writeIfMissing(outputDir, ".cursor/rules/agent-contract.mdc", vaultCursorRule());
+}
+
+async function writeIfMissing(root, relativePath, content) {
+  const target = path.join(root, relativePath);
+  if (await exists(target)) return;
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, content, "utf8");
+}
+
+function vaultAgentsMd() {
+  return `# Personal Job-Search Vault Agent Contract
+
+This folder is one person's private job-search Memex. This file is the shared agent contract for every AI coding harness: Codex, OpenCode, and Cursor read it directly; Claude Code imports it via CLAUDE.md; .cursor/rules/ points here as well.
+
+Ground rules:
+
+- Never invent experience, metrics, target companies, contacts, compensation, or constraints. If it is not in this vault or the conversation, record it as a missing input.
+- Keep generated notes review-gated (\`review_needed: true\`) and keep facts, inferences, claims to verify, and missing inputs separate.
+- Do not send vault contents to any external service unless the owner explicitly approves that specific action.
+- Applications and outreach stay human-gated: you draft, the owner decides and sends.
+- To change the system itself (templates, prompts, workflows, structure), follow \`System/Workflows/Vault Evolution.md\`: smallest reversible change, one at a time, explained in plain language.
+- After structural changes, check the vault with \`npm run validate\`.
+
+Start here: \`01 Start Here/Start Here.md\`. Enhancement ideas the owner may pick from: \`System/Workflows/Ideas To Grow Your Vault.md\`.
+`;
+}
+
+function vaultClaudeMd() {
+  return `@AGENTS.md
+
+Claude Code: the agent contract for this vault lives in \`AGENTS.md\` (imported above).
+`;
+}
+
+function vaultCursorRule() {
+  return `---
+description: Agent contract for this personal job-search vault
+alwaysApply: true
+---
+
+Follow the agent contract in \`AGENTS.md\` at the vault root before making any changes.
+`;
 }
 
 async function copyIfMissing(source, destination) {
@@ -452,11 +497,11 @@ function yamlBase(type, kind, model) {
 }
 
 function startHere(model) {
-  return `${yamlBase("guide", "start_here", model)}# Start Here\n\nWelcome, ${model.name}.\n\n## Open First\n\n1. Review [[Canonical Resume]].\n2. Review [[Resume Evidence Bank]].\n3. Review [[Candidate-Market Fit]].\n4. Review [[Job Search Strategy]].\n5. Add one role to \`04 Objects/Applications/\`.\n6. Run the first weekly review.\n\n## Review Needed\n\nThese notes were generated locally and need human review before external use.\n`;
+  return `${yamlBase("guide", "start_here", model)}# Start Here\n\nWelcome, ${model.name}.\n\n## Open First\n\n1. Review [[Canonical Resume]].\n2. Review [[Resume Evidence Bank]].\n3. Review [[Candidate-Market Fit]].\n4. Review [[Job Search Strategy]].\n5. Add one role to \`04 Objects/Applications/\`.\n6. Run the first weekly review.\n\n## Make It Yours\n\nThis system is meant to be reshaped around your search, with your AI assistant doing the heavy lifting. When something annoys you, see [[Vault Evolution]]; for inspiration, browse [[Ideas To Grow Your Vault]].\n\n## Review Needed\n\nThese notes were generated locally and need human review before external use.\n`;
 }
 
 function firstWeekChecklist() {
-  return `# First Week Checklist\n\n- [ ] Review generated resume facts.\n- [ ] Resolve claims to verify.\n- [ ] Add target roles and company types.\n- [ ] Capture one target company.\n- [ ] Capture one conversation or outreach plan.\n- [ ] Create one application note.\n- [ ] Complete the first weekly review.\n`;
+  return `# First Week Checklist\n\n- [ ] Review generated resume facts.\n- [ ] Resolve claims to verify.\n- [ ] Add target roles and company types.\n- [ ] Capture one target company.\n- [ ] Capture one conversation or outreach plan.\n- [ ] Create one application note.\n- [ ] Complete the first weekly review.\n\n## Week 2 And Beyond\n\nThis vault is yours to change, and your AI assistant can do the heavy lifting. Climb one rung at a time:\n\n1. Use the vault as-is for a week and note what annoys you (the weekly review asks).\n2. Edit one template by hand.\n3. Ask your AI assistant to change one prompt or template for you.\n4. Pick an idea from [[Ideas To Grow Your Vault]] and build it together.\n`;
 }
 
 function jobSearchHub(model, answers) {
@@ -488,7 +533,7 @@ function artifactIndex(model) {
 }
 
 function weeklyReview(model, answers) {
-  return `${yamlBase("synthesis", "weekly_review", model)}# Weekly Job Search Review - ${model.today}\n\n## Metrics\n\n- Applications submitted:\n- Active roles:\n- Roles needing action:\n- Conversations:\n- Networking messages:\n- Referrals requested:\n\n## What Changed This Week\n\n-\n\n## New Market Signals\n\n-\n\n## Candidate-Market Fit Updates\n\n-\n\n## Next Week Priorities\n\n- Review generated setup notes.\n- Add one target role.\n- Schedule or capture one job-search conversation.\n\n## Accountability / Stakeholder Update\n\nThis week I set up the job-search Memex structure. Next review day: ${answers.weeklyReviewDay}.\n`;
+  return `${yamlBase("synthesis", "weekly_review", model)}# Weekly Job Search Review - ${model.today}\n\n## Metrics\n\n- Applications submitted:\n- Active roles:\n- Roles needing action:\n- Conversations:\n- Networking messages:\n- Referrals requested:\n\n## What Changed This Week\n\n-\n\n## New Market Signals\n\n-\n\n## Candidate-Market Fit Updates\n\n-\n\n## Next Week Priorities\n\n- Review generated setup notes.\n- Add one target role.\n- Schedule or capture one job-search conversation.\n\n## System Friction\n\nWhat annoyed you about the system itself this week?\n\n-\n\nPick one item and ask your AI assistant to fix it - see [[Vault Evolution]] for how, and [[Ideas To Grow Your Vault]] if you want inspiration.\n\n## Accountability / Stakeholder Update\n\nThis week I set up the job-search Memex structure. Next review day: ${answers.weeklyReviewDay}.\n`;
 }
 
 function artifactBullets(artifacts) {
