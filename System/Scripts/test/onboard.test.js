@@ -150,3 +150,26 @@ test("generated vault passes vault-mode validation", async () => {
   const result = await execFileAsync("node", [VALIDATE, "--root", tmp, "--mode", "vault"]);
   assert.match(result.stdout, /Vault validation passed/);
 });
+
+test("exported vault carries harness-agnostic agent instructions and the learning loop", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "job-search-memex-agent-files-"));
+  await execFileAsync("node", [ONBOARD, "--yes", "--output", tmp]);
+
+  const agents = await fs.readFile(path.join(tmp, "AGENTS.md"), "utf8");
+  const claude = await fs.readFile(path.join(tmp, "CLAUDE.md"), "utf8");
+  const cursorRule = await fs.readFile(path.join(tmp, ".cursor/rules/agent-contract.mdc"), "utf8");
+  assert.match(agents, /Personal Job-Search Vault Agent Contract/);
+  assert.match(agents, /Vault Evolution/);
+  assert.match(claude, /@AGENTS\.md/);
+  assert.match(cursorRule, /alwaysApply: true/);
+
+  await fs.access(path.join(tmp, "System/Workflows/Vault Evolution.md"));
+  await fs.access(path.join(tmp, "System/Workflows/Ideas To Grow Your Vault.md"));
+
+  const reviews = await fs.readdir(path.join(tmp, "01 Reviews/Weekly"));
+  const weekly = await fs.readFile(path.join(tmp, "01 Reviews/Weekly", reviews[0]), "utf8");
+  assert.match(weekly, /## System Friction/);
+
+  const checklist = await fs.readFile(path.join(tmp, "01 Start Here/First Week Checklist.md"), "utf8");
+  assert.match(checklist, /Week 2 And Beyond/);
+});

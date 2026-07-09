@@ -13,3 +13,4 @@ review_needed: false
 - Keep interview prep on demand until there is a real trigger.
 - Preserve source URLs and source document names when available.
 - Mark generated notes with `review_needed: true`.
+- When changing the system itself (templates, prompts, workflows, structure), follow [[Vault Evolution]].

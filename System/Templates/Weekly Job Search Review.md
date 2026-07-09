@@ -51,6 +51,14 @@ tags:
 
 -
 
+## System Friction
+
+What annoyed you about the system itself this week?
+
+-
+
+Pick one item and ask your AI assistant to fix it — see [[Vault Evolution]] for how, and [[Ideas To Grow Your Vault]] if you want inspiration.
+
 ## Accountability / Stakeholder Update
 
 -

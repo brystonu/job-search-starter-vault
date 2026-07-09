@@ -1,0 +1,6 @@
+---
+description: Agent contract for the Job Search Memex starter
+alwaysApply: true
+---
+
+Follow the agent contract in `AGENTS.md` at the repo root before making any changes. For setup requests, follow `AI_ONBOARDING.md`.

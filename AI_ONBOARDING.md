@@ -1,6 +1,6 @@
 # AI Onboarding Instructions
 
-Use this file when helping a user set up this starter repo.
+Use this file when helping a user set up this starter repo. It applies to any AI coding harness (Claude Code, Codex, Cursor, OpenCode, or similar); the general agent contract lives in `AGENTS.md`, which every harness reads directly or through the `CLAUDE.md` / `.cursor/rules/` mirrors.
 
 ## Prime Directive
 
@@ -84,6 +84,10 @@ Hard rules for this pass:
 - Every number stays flagged for verification.
 - Missing Inputs sections stay present.
 - Keep `review_needed: true` on generated notes.
+
+When enrichment is done, tell the user two things about the vault's future: the weekly review will ask what annoyed them about the system, and `System/Workflows/Ideas To Grow Your Vault.md` holds enhancement ideas they can build with you later. Do not build any of those enhancements now — they are the user's to pick when a real friction appears. Later changes to the vault's templates, prompts, or workflows follow `System/Workflows/Vault Evolution.md`.
+
+The generated vault carries its own agent instructions (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/`), so any harness the user opens it with later will inherit these rules.
 
 ## Harness Rules
 
