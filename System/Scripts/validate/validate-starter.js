@@ -48,9 +48,22 @@ const PRIVATE_STRINGS = [
   "Kat" + "ie"
 ];
 
+const VAULT_REQUIRED_PATHS = [
+  "01 Start Here/Start Here.md",
+  "02 Projects/Job Search.md"
+];
+
+const MODES = ["starter", "vault"];
+
 function parseArgs(argv) {
   const rootIndex = argv.indexOf("--root");
-  return rootIndex === -1 ? process.cwd() : path.resolve(argv[rootIndex + 1]);
+  const root = rootIndex === -1 ? process.cwd() : path.resolve(argv[rootIndex + 1]);
+  const modeIndex = argv.indexOf("--mode");
+  const mode = modeIndex === -1 ? "starter" : argv[modeIndex + 1];
+  if (!MODES.includes(mode)) {
+    throw new Error(`Unknown --mode "${mode}". Expected one of: ${MODES.join(", ")}.`);
+  }
+  return { root, mode };
 }
 
 async function exists(file) {
@@ -74,13 +87,7 @@ async function walk(dir) {
   return files;
 }
 
-async function main() {
-  const root = parseArgs(process.argv.slice(2));
-  for (const requiredPath of REQUIRED_PATHS) {
-    const target = path.join(root, requiredPath);
-    if (!(await exists(target))) throw new Error(`Missing required starter path: ${requiredPath}`);
-  }
-
+async function checkGeneratedPaths(root) {
   for (const generatedPath of GENERATED_REQUIRED_PATHS) {
     const target = path.join(root, generatedPath);
     if (await exists(target)) {
@@ -91,6 +98,29 @@ async function main() {
       }
     }
   }
+}
+
+async function main() {
+  const { root, mode } = parseArgs(process.argv.slice(2));
+
+  if (mode === "vault") {
+    for (const requiredPath of VAULT_REQUIRED_PATHS) {
+      const target = path.join(root, requiredPath);
+      if (!(await exists(target))) throw new Error(`Missing required vault path: ${requiredPath}`);
+    }
+
+    await checkGeneratedPaths(root);
+
+    console.log("Vault validation passed.");
+    return;
+  }
+
+  for (const requiredPath of REQUIRED_PATHS) {
+    const target = path.join(root, requiredPath);
+    if (!(await exists(target))) throw new Error(`Missing required starter path: ${requiredPath}`);
+  }
+
+  await checkGeneratedPaths(root);
 
   const files = await walk(root);
   for (const file of files) {
