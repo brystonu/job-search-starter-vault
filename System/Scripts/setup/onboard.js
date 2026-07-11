@@ -108,7 +108,7 @@ async function main() {
       await maybeRenameStarterRemote(answers);
     } else {
       await exportVaultScaffold(STARTER_ROOT, answers.output);
-      await initVaultGit(answers.output, answers.versionControl);
+      await initVaultGit(answers);
     }
     printSummary(answers.output, model);
   } finally {
@@ -320,11 +320,15 @@ async function maybeRenameStarterRemote(answers) {
   }
 }
 
-async function initVaultGit(outputDir, mode) {
+async function initVaultGit(answers) {
+  const outputDir = answers.output;
+  const mode = answers.versionControl;
   if (mode !== "git" && mode !== "backup") return;
 
-  // Guarantee Private/ stays out of git even if the output dir had its own .gitignore.
-  await ensurePrivateIgnored(outputDir);
+  // Keep Private/ and any user-supplied source files that live inside the vault out of git,
+  // so a broad `git add -A` (or the user's own later) never commits raw sources - upholding
+  // the "sources are not committed unless opted into storage" contract, including in backup mode.
+  await ensureIgnored(outputDir, ["Private/", ...inputIgnoreEntries(answers)]);
 
   const alreadyRepo = await exists(path.join(outputDir, ".git"));
 
@@ -366,16 +370,52 @@ async function initVaultGit(outputDir, mode) {
   }
 
   if (mode === "backup") {
-    output.write("\nTo back up to your own PRIVATE GitHub repo (keep it private - it holds personal data):\n");
-    output.write("  1. Create a new PRIVATE repository on GitHub.\n");
-    output.write(`  2. cd "${outputDir}"\n`);
-    output.write("  3. git remote add origin <your-private-repo-url>\n");
-    output.write("  4. git branch -M main\n");
-    output.write("  5. git push -u origin main\n");
+    await printBackupSteps(outputDir, alreadyRepo);
   }
 }
 
-async function ensurePrivateIgnored(outputDir) {
+async function printBackupSteps(outputDir, alreadyRepo) {
+  output.write("\nTo back up to your own PRIVATE GitHub repo (keep it private - it holds personal data):\n");
+  const originExists = alreadyRepo && (await remoteExists(outputDir, "origin"));
+  const steps = [];
+  if (!originExists) steps.push("Create a new PRIVATE repository on GitHub.");
+  steps.push(`cd "${outputDir}"`);
+  if (originExists) {
+    // The cloned repo already points at the user's remote; just push the current branch.
+    steps.push("git push -u origin HEAD   # this folder already has an 'origin' remote");
+  } else {
+    steps.push("git remote add origin <your-private-repo-url>");
+    if (!alreadyRepo) steps.push("git branch -M main");
+    steps.push(`git push -u origin ${alreadyRepo ? "HEAD" : "main"}`);
+  }
+  steps.forEach((step, index) => output.write(`  ${index + 1}. ${step}\n`));
+}
+
+async function remoteExists(dir, name) {
+  try {
+    const { stdout } = await execFileAsync("git", ["remote"], { cwd: dir });
+    return stdout.split(/\r?\n/).map((line) => line.trim()).includes(name);
+  } catch {
+    return false;
+  }
+}
+
+function inputIgnoreEntries(answers) {
+  const files = [];
+  if (answers.resumeFile) files.push(answers.resumeFile);
+  for (const artifact of answers.artifacts) {
+    if (artifact.file) files.push(artifact.file);
+  }
+  const entries = [];
+  for (const file of files) {
+    const relative = path.relative(answers.output, path.resolve(file));
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) continue; // outside the vault
+    entries.push(`/${relative.split(path.sep).join("/")}`); // anchor to the vault root
+  }
+  return entries;
+}
+
+async function ensureIgnored(outputDir, entries) {
   const gitignorePath = path.join(outputDir, ".gitignore");
   let contents = "";
   try {
@@ -383,13 +423,11 @@ async function ensurePrivateIgnored(outputDir) {
   } catch {
     // No .gitignore yet; we will create one.
   }
-  const alreadyIgnored = contents.split(/\r?\n/).some((line) => {
-    const trimmed = line.trim();
-    return trimmed === "Private/" || trimmed === "Private";
-  });
-  if (alreadyIgnored) return;
+  const present = new Set(contents.split(/\r?\n/).map((line) => line.trim()));
+  const missing = entries.filter((entry) => entry && !present.has(entry));
+  if (!missing.length) return;
   const prefix = contents && !contents.endsWith("\n") ? "\n" : "";
-  await fs.writeFile(gitignorePath, `${contents}${prefix}Private/\n`, "utf8");
+  await fs.writeFile(gitignorePath, `${contents}${prefix}${missing.join("\n")}\n`, "utf8");
 }
 
 async function readResume(answers) {

@@ -220,3 +220,30 @@ test("version-control backup gives guidance in an existing git repo instead of s
   assert.match(result.stdout, /already a git repository/);
   assert.match(result.stdout, /PRIVATE GitHub repo/);
 });
+
+test("version-control git does not commit a source file kept inside the vault", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "job-search-memex-vc-src-"));
+  const out = path.join(tmp, "vault");
+  await fs.mkdir(out, { recursive: true });
+  const resume = path.join(out, "resume.md");
+  await fs.writeFile(resume, "# Jordan Lee\n\nSenior Product Manager\n", "utf8");
+
+  await execFileAsync("node", [
+    ONBOARD, "--yes", "--version-control", "git", "--resume-file", resume, "--output", out
+  ]);
+
+  const tracked = await execFileAsync("git", ["ls-files"], { cwd: out });
+  assert.doesNotMatch(tracked.stdout, /(^|\n)resume\.md/);
+});
+
+test("version-control backup adapts its instructions when origin already exists", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "job-search-memex-vc-origin-"));
+  const out = path.join(tmp, "vault");
+  await fs.mkdir(out, { recursive: true });
+  await execFileAsync("git", ["init", "-q"], { cwd: out });
+  await execFileAsync("git", ["remote", "add", "origin", "https://example.com/private.git"], { cwd: out });
+
+  const result = await execFileAsync("node", [ONBOARD, "--yes", "--version-control", "backup", "--output", out]);
+  assert.match(result.stdout, /already has an 'origin' remote/);
+  assert.doesNotMatch(result.stdout, /git remote add origin/);
+});
