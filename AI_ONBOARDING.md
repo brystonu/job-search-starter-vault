@@ -66,6 +66,7 @@ other
 - `--name`, `--resume-file`, `--resume-text`, `--artifact`, `--yes`, `--store-sources` — as before.
 - `--target-roles`, `--industries`, `--location`, `--deal-breakers`, `--review-day`, `--ai-help` — pass the user's interview answers non-interactively.
 - `--output` — where to create the vault. Default is a sibling folder, `../My Job Search Vault`.
+- `--version-control copy|git|backup` — how the vault is kept. `copy` (default) leaves plain files; `git` adds local history with a first commit; `backup` also prints steps for the user to push to their own private repo. In interactive mode the wizard asks this as a 3-way choice; non-interactively, pass the user's stated preference or omit for `copy`. Never point a vault remote at this public starter.
 - `--in-place` — advanced: set up inside the starter clone instead of a sibling folder. In this mode the wizard renames the git remote `origin` to `starter-origin` as a push guard. `--keep-remote` opts out of the rename. Do not choose `--in-place` on the user's behalf.
 
 ## After The Wizard: Enrichment Contract

@@ -173,3 +173,23 @@ test("exported vault carries harness-agnostic agent instructions and the learnin
   const checklist = await fs.readFile(path.join(tmp, "01 Start Here/First Week Checklist.md"), "utf8");
   assert.match(checklist, /Week 2 And Beyond/);
 });
+
+test("version-control git initializes a repo in the exported vault", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "job-search-memex-vc-git-"));
+  await execFileAsync("node", [ONBOARD, "--yes", "--version-control", "git", "--output", tmp]);
+  await fs.access(path.join(tmp, ".git"));
+});
+
+test("default setup leaves the vault without a git repo", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "job-search-memex-vc-copy-"));
+  await execFileAsync("node", [ONBOARD, "--yes", "--output", tmp]);
+  await assert.rejects(fs.access(path.join(tmp, ".git")));
+});
+
+test("version-control rejects an unknown mode", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "job-search-memex-vc-bad-"));
+  await assert.rejects(
+    execFileAsync("node", [ONBOARD, "--yes", "--version-control", "bogus", "--output", tmp]),
+    /Unknown --version-control value/
+  );
+});

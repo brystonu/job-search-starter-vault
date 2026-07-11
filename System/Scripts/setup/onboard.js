@@ -48,8 +48,19 @@ const DEFAULT_OPTIONS = {
   reviewDay: "",
   aiHelp: "",
   inPlace: false,
-  keepRemote: false
+  keepRemote: false,
+  versionControl: ""
 };
+
+const VERSION_CONTROL_MODES = new Set(["copy", "git", "backup"]);
+
+function parseVersionControl(value) {
+  const mode = (value || "").trim().toLowerCase();
+  if (!VERSION_CONTROL_MODES.has(mode)) {
+    throw new Error(`Unknown --version-control value "${value}". Use copy, git, or backup.`);
+  }
+  return mode;
+}
 
 function parseArgs(argv) {
   const options = { ...DEFAULT_OPTIONS, artifacts: [] };
@@ -69,6 +80,7 @@ function parseArgs(argv) {
     else if (arg === "--deal-breakers") options.dealBreakers = argv[++i] ?? "";
     else if (arg === "--review-day") options.reviewDay = argv[++i] ?? "";
     else if (arg === "--ai-help") options.aiHelp = argv[++i] ?? "";
+    else if (arg === "--version-control") options.versionControl = parseVersionControl(argv[++i] ?? "");
     else if (arg === "--artifact") options.artifacts.push(parseArtifactArg(argv[++i] ?? ""));
   }
   return options;
@@ -96,6 +108,7 @@ async function main() {
       await maybeRenameStarterRemote(answers);
     } else {
       await exportVaultScaffold(STARTER_ROOT, answers.output);
+      await initVaultGit(answers.output, answers.versionControl);
     }
     printSummary(answers.output, model);
   } finally {
@@ -135,13 +148,31 @@ async function collectInputs(options, rl) {
       const type = await ask(rl, "Artifact type", "other");
       answers.artifacts.push({ file, type: ARTIFACT_TYPES.has(type) ? type : "other" });
     }
+
+    if (!answers.versionControl && !answers.inPlace) {
+      answers.versionControl = await askVersionControl(rl);
+    }
   } else {
     answers.name ||= "Job Seeker";
   }
 
+  answers.versionControl ||= "copy";
   answers.resume = await readResume(answers);
   answers.artifactTexts = await readArtifacts(answers.artifacts);
   return answers;
+}
+
+async function askVersionControl(rl) {
+  output.write(
+    "\nHow do you want to keep your vault?\n" +
+    "  1. Files only - simplest; nothing to learn, nothing to break.\n" +
+    "  2. Local history - a private undo button; see and roll back every change, all on your machine.\n" +
+    "  3. Ready to back up - local history plus steps to push to your own PRIVATE GitHub repo, backed up and synced.\n"
+  );
+  const choice = await ask(rl, "Choose 1, 2, or 3", "1");
+  if (choice.startsWith("2")) return "git";
+  if (choice.startsWith("3")) return "backup";
+  return "copy";
 }
 
 async function ask(rl, prompt, defaultValue) {
@@ -286,6 +317,45 @@ async function maybeRenameStarterRemote(answers) {
     output.write("Renamed the git remote origin to starter-origin so an accidental git push cannot publish personal notes to the public starter repo. Pass --keep-remote to skip this.\n");
   } catch {
     // git is unavailable or the rename failed; nothing safe to do here.
+  }
+}
+
+async function initVaultGit(outputDir, mode) {
+  if (mode !== "git" && mode !== "backup") return;
+  if (await exists(path.join(outputDir, ".git"))) return;
+  try {
+    await execFileAsync("git", ["init", "-q"], { cwd: outputDir });
+    // Name the branch main (portable across git versions and safe before the first commit)
+    // so the backup instructions below match what the user actually has.
+    await execFileAsync("git", ["symbolic-ref", "HEAD", "refs/heads/main"], { cwd: outputDir });
+    await execFileAsync("git", ["add", "-A"], { cwd: outputDir });
+  } catch {
+    output.write("Could not set up git here (is git installed?). Your files are safe; skipping version control.\n");
+    return;
+  }
+
+  let committed = false;
+  try {
+    await execFileAsync("git", ["commit", "-q", "-m", "Initial job-search vault"], { cwd: outputDir });
+    committed = true;
+  } catch {
+    // Most likely no git identity is configured. Leave the staged snapshot for the user to commit.
+  }
+
+  if (committed) {
+    output.write("Set up local git history with a first commit. Run `git log` to see it and `git status` as you work.\n");
+  } else {
+    output.write("Staged your files for a first commit. Set your git identity, then commit:\n");
+    output.write("  git config user.name \"Your Name\"\n");
+    output.write("  git config user.email \"you@example.com\"\n");
+    output.write("  git commit -m \"Initial job-search vault\"\n");
+  }
+
+  if (mode === "backup") {
+    output.write("\nTo back up to your own PRIVATE GitHub repo (keep it private - it holds personal data):\n");
+    output.write("  1. Create a new PRIVATE repository on GitHub.\n");
+    output.write("  2. git remote add origin <your-private-repo-url>\n");
+    output.write("  3. git push -u origin main\n");
   }
 }
 
