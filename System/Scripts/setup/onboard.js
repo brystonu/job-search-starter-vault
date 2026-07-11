@@ -322,41 +322,74 @@ async function maybeRenameStarterRemote(answers) {
 
 async function initVaultGit(outputDir, mode) {
   if (mode !== "git" && mode !== "backup") return;
-  if (await exists(path.join(outputDir, ".git"))) return;
-  try {
-    await execFileAsync("git", ["init", "-q"], { cwd: outputDir });
-    // Name the branch main (portable across git versions and safe before the first commit)
-    // so the backup instructions below match what the user actually has.
-    await execFileAsync("git", ["symbolic-ref", "HEAD", "refs/heads/main"], { cwd: outputDir });
-    await execFileAsync("git", ["add", "-A"], { cwd: outputDir });
-  } catch {
-    output.write("Could not set up git here (is git installed?). Your files are safe; skipping version control.\n");
-    return;
-  }
 
-  let committed = false;
-  try {
-    await execFileAsync("git", ["commit", "-q", "-m", "Initial job-search vault"], { cwd: outputDir });
-    committed = true;
-  } catch {
-    // Most likely no git identity is configured. Leave the staged snapshot for the user to commit.
-  }
+  // Guarantee Private/ stays out of git even if the output dir had its own .gitignore.
+  await ensurePrivateIgnored(outputDir);
 
-  if (committed) {
-    output.write("Set up local git history with a first commit. Run `git log` to see it and `git status` as you work.\n");
+  const alreadyRepo = await exists(path.join(outputDir, ".git"));
+
+  if (alreadyRepo) {
+    // Do not touch an existing repo's history or remotes; tell the user how to commit the vault.
+    output.write("This folder is already a git repository, so its history and remotes were left alone. Commit the new vault files when ready:\n");
+    output.write(`  cd "${outputDir}"\n`);
+    output.write("  git add -A\n");
+    output.write("  git commit -m \"Add job-search vault\"\n");
   } else {
-    output.write("Staged your files for a first commit. Set your git identity, then commit:\n");
-    output.write("  git config user.name \"Your Name\"\n");
-    output.write("  git config user.email \"you@example.com\"\n");
-    output.write("  git commit -m \"Initial job-search vault\"\n");
+    try {
+      await execFileAsync("git", ["init", "-q"], { cwd: outputDir });
+      // Name the branch main (portable across git versions and safe before the first commit)
+      // so the backup instructions below match what the user actually has.
+      await execFileAsync("git", ["symbolic-ref", "HEAD", "refs/heads/main"], { cwd: outputDir });
+      await execFileAsync("git", ["add", "-A"], { cwd: outputDir });
+    } catch {
+      output.write("Could not set up git here (is git installed?). Your files are safe; skipping version control.\n");
+      return;
+    }
+
+    let committed = false;
+    try {
+      await execFileAsync("git", ["commit", "-q", "-m", "Initial job-search vault"], { cwd: outputDir });
+      committed = true;
+    } catch {
+      // Most likely no git identity is configured. Leave the staged snapshot for the user to commit.
+    }
+
+    if (committed) {
+      output.write("Set up local git history with a first commit. Run `git log` to see it and `git status` as you work.\n");
+    } else {
+      output.write("Staged your files for a first commit. Set your git identity, then commit:\n");
+      output.write(`  cd "${outputDir}"\n`);
+      output.write("  git config user.name \"Your Name\"\n");
+      output.write("  git config user.email \"you@example.com\"\n");
+      output.write("  git commit -m \"Initial job-search vault\"\n");
+    }
   }
 
   if (mode === "backup") {
     output.write("\nTo back up to your own PRIVATE GitHub repo (keep it private - it holds personal data):\n");
     output.write("  1. Create a new PRIVATE repository on GitHub.\n");
-    output.write("  2. git remote add origin <your-private-repo-url>\n");
-    output.write("  3. git push -u origin main\n");
+    output.write(`  2. cd "${outputDir}"\n`);
+    output.write("  3. git remote add origin <your-private-repo-url>\n");
+    output.write("  4. git branch -M main\n");
+    output.write("  5. git push -u origin main\n");
   }
+}
+
+async function ensurePrivateIgnored(outputDir) {
+  const gitignorePath = path.join(outputDir, ".gitignore");
+  let contents = "";
+  try {
+    contents = await fs.readFile(gitignorePath, "utf8");
+  } catch {
+    // No .gitignore yet; we will create one.
+  }
+  const alreadyIgnored = contents.split(/\r?\n/).some((line) => {
+    const trimmed = line.trim();
+    return trimmed === "Private/" || trimmed === "Private";
+  });
+  if (alreadyIgnored) return;
+  const prefix = contents && !contents.endsWith("\n") ? "\n" : "";
+  await fs.writeFile(gitignorePath, `${contents}${prefix}Private/\n`, "utf8");
 }
 
 async function readResume(answers) {

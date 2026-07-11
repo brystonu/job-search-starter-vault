@@ -193,3 +193,30 @@ test("version-control rejects an unknown mode", async () => {
     /Unknown --version-control value/
   );
 });
+
+test("version-control git never stages Private/ sources even with a custom .gitignore", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "job-search-memex-vc-private-"));
+  const out = path.join(tmp, "vault");
+  await fs.mkdir(out, { recursive: true });
+  await fs.writeFile(path.join(out, ".gitignore"), "node_modules/\n", "utf8"); // deliberately lacks Private/
+  const resume = path.join(tmp, "resume.md");
+  await fs.writeFile(resume, "# Jordan Lee\n\nSenior Product Manager\n", "utf8");
+
+  await execFileAsync("node", [
+    ONBOARD, "--yes", "--version-control", "git", "--store-sources", "--resume-file", resume, "--output", out
+  ]);
+
+  const tracked = await execFileAsync("git", ["ls-files"], { cwd: out });
+  assert.doesNotMatch(tracked.stdout, /Private\//);
+});
+
+test("version-control backup gives guidance in an existing git repo instead of silently doing nothing", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "job-search-memex-vc-existing-"));
+  const out = path.join(tmp, "vault");
+  await fs.mkdir(out, { recursive: true });
+  await execFileAsync("git", ["init", "-q"], { cwd: out });
+
+  const result = await execFileAsync("node", [ONBOARD, "--yes", "--version-control", "backup", "--output", out]);
+  assert.match(result.stdout, /already a git repository/);
+  assert.match(result.stdout, /PRIVATE GitHub repo/);
+});
