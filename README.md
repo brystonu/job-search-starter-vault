@@ -147,6 +147,16 @@ Every generated note is marked `review_needed: true`, and facts, inferences, cla
 
 Advanced users can pass `--in-place` to set up inside this starter clone instead; the wizard then renames the git remote as a safety guard against accidentally publishing personal data.
 
+### Keeping your vault
+
+The wizard asks how you want to keep the vault (or pass `--version-control`):
+
+- **Files only** (default) — simplest; nothing to learn, nothing to break.
+- **Local history** (`git`) — a private undo button: see and roll back every change, entirely on your machine.
+- **Ready to back up** (`backup`) — local history plus printed steps to push to your own **private** GitHub repo, so it's backed up and synced across machines.
+
+The vault is never linked to this public starter, and any version control it uses is yours alone.
+
 ## Inputs
 
 The wizard accepts pasted text, `.txt`, `.md`, and `.docx` (Word) files.

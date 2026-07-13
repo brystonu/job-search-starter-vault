@@ -48,8 +48,19 @@ const DEFAULT_OPTIONS = {
   reviewDay: "",
   aiHelp: "",
   inPlace: false,
-  keepRemote: false
+  keepRemote: false,
+  versionControl: ""
 };
+
+const VERSION_CONTROL_MODES = new Set(["copy", "git", "backup"]);
+
+function parseVersionControl(value) {
+  const mode = (value || "").trim().toLowerCase();
+  if (!VERSION_CONTROL_MODES.has(mode)) {
+    throw new Error(`Unknown --version-control value "${value}". Use copy, git, or backup.`);
+  }
+  return mode;
+}
 
 function parseArgs(argv) {
   const options = { ...DEFAULT_OPTIONS, artifacts: [] };
@@ -69,6 +80,7 @@ function parseArgs(argv) {
     else if (arg === "--deal-breakers") options.dealBreakers = argv[++i] ?? "";
     else if (arg === "--review-day") options.reviewDay = argv[++i] ?? "";
     else if (arg === "--ai-help") options.aiHelp = argv[++i] ?? "";
+    else if (arg === "--version-control") options.versionControl = parseVersionControl(argv[++i] ?? "");
     else if (arg === "--artifact") options.artifacts.push(parseArtifactArg(argv[++i] ?? ""));
   }
   return options;
@@ -96,6 +108,7 @@ async function main() {
       await maybeRenameStarterRemote(answers);
     } else {
       await exportVaultScaffold(STARTER_ROOT, answers.output);
+      await initVaultGit(answers);
     }
     printSummary(answers.output, model);
   } finally {
@@ -135,13 +148,31 @@ async function collectInputs(options, rl) {
       const type = await ask(rl, "Artifact type", "other");
       answers.artifacts.push({ file, type: ARTIFACT_TYPES.has(type) ? type : "other" });
     }
+
+    if (!answers.versionControl && !answers.inPlace) {
+      answers.versionControl = await askVersionControl(rl);
+    }
   } else {
     answers.name ||= "Job Seeker";
   }
 
+  answers.versionControl ||= "copy";
   answers.resume = await readResume(answers);
   answers.artifactTexts = await readArtifacts(answers.artifacts);
   return answers;
+}
+
+async function askVersionControl(rl) {
+  output.write(
+    "\nHow do you want to keep your vault?\n" +
+    "  1. Files only - simplest; nothing to learn, nothing to break.\n" +
+    "  2. Local history - a private undo button; see and roll back every change, all on your machine.\n" +
+    "  3. Ready to back up - local history plus steps to push to your own PRIVATE GitHub repo, backed up and synced.\n"
+  );
+  const choice = await ask(rl, "Choose 1, 2, or 3", "1");
+  if (choice.startsWith("2")) return "git";
+  if (choice.startsWith("3")) return "backup";
+  return "copy";
 }
 
 async function ask(rl, prompt, defaultValue) {
@@ -287,6 +318,116 @@ async function maybeRenameStarterRemote(answers) {
   } catch {
     // git is unavailable or the rename failed; nothing safe to do here.
   }
+}
+
+async function initVaultGit(answers) {
+  const outputDir = answers.output;
+  const mode = answers.versionControl;
+  if (mode !== "git" && mode !== "backup") return;
+
+  // Keep Private/ and any user-supplied source files that live inside the vault out of git,
+  // so a broad `git add -A` (or the user's own later) never commits raw sources - upholding
+  // the "sources are not committed unless opted into storage" contract, including in backup mode.
+  await ensureIgnored(outputDir, ["Private/", ...inputIgnoreEntries(answers)]);
+
+  const alreadyRepo = await exists(path.join(outputDir, ".git"));
+
+  if (alreadyRepo) {
+    // Do not touch an existing repo's history or remotes; tell the user how to commit the vault.
+    output.write("This folder is already a git repository, so its history and remotes were left alone. Commit the new vault files when ready:\n");
+    output.write(`  cd "${outputDir}"\n`);
+    output.write("  git add -A\n");
+    output.write("  git commit -m \"Add job-search vault\"\n");
+  } else {
+    try {
+      await execFileAsync("git", ["init", "-q"], { cwd: outputDir });
+      // Name the branch main (portable across git versions and safe before the first commit)
+      // so the backup instructions below match what the user actually has.
+      await execFileAsync("git", ["symbolic-ref", "HEAD", "refs/heads/main"], { cwd: outputDir });
+      await execFileAsync("git", ["add", "-A"], { cwd: outputDir });
+    } catch {
+      output.write("Could not set up git here (is git installed?). Your files are safe; skipping version control.\n");
+      return;
+    }
+
+    let committed = false;
+    try {
+      await execFileAsync("git", ["commit", "-q", "-m", "Initial job-search vault"], { cwd: outputDir });
+      committed = true;
+    } catch {
+      // Most likely no git identity is configured. Leave the staged snapshot for the user to commit.
+    }
+
+    if (committed) {
+      output.write("Set up local git history with a first commit. Run `git log` to see it and `git status` as you work.\n");
+    } else {
+      output.write("Staged your files for a first commit. Set your git identity, then commit:\n");
+      output.write(`  cd "${outputDir}"\n`);
+      output.write("  git config user.name \"Your Name\"\n");
+      output.write("  git config user.email \"you@example.com\"\n");
+      output.write("  git commit -m \"Initial job-search vault\"\n");
+    }
+  }
+
+  if (mode === "backup") {
+    await printBackupSteps(outputDir, alreadyRepo);
+  }
+}
+
+async function printBackupSteps(outputDir, alreadyRepo) {
+  output.write("\nTo back up to your own PRIVATE GitHub repo (keep it private - it holds personal data):\n");
+  const originExists = alreadyRepo && (await remoteExists(outputDir, "origin"));
+  const steps = [];
+  if (!originExists) steps.push("Create a new PRIVATE repository on GitHub.");
+  steps.push(`cd "${outputDir}"`);
+  if (originExists) {
+    // The cloned repo already points at the user's remote; just push the current branch.
+    steps.push("git push -u origin HEAD   # this folder already has an 'origin' remote");
+  } else {
+    steps.push("git remote add origin <your-private-repo-url>");
+    if (!alreadyRepo) steps.push("git branch -M main");
+    steps.push(`git push -u origin ${alreadyRepo ? "HEAD" : "main"}`);
+  }
+  steps.forEach((step, index) => output.write(`  ${index + 1}. ${step}\n`));
+}
+
+async function remoteExists(dir, name) {
+  try {
+    const { stdout } = await execFileAsync("git", ["remote"], { cwd: dir });
+    return stdout.split(/\r?\n/).map((line) => line.trim()).includes(name);
+  } catch {
+    return false;
+  }
+}
+
+function inputIgnoreEntries(answers) {
+  const files = [];
+  if (answers.resumeFile) files.push(answers.resumeFile);
+  for (const artifact of answers.artifacts) {
+    if (artifact.file) files.push(artifact.file);
+  }
+  const entries = [];
+  for (const file of files) {
+    const relative = path.relative(answers.output, path.resolve(file));
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) continue; // outside the vault
+    entries.push(`/${relative.split(path.sep).join("/")}`); // anchor to the vault root
+  }
+  return entries;
+}
+
+async function ensureIgnored(outputDir, entries) {
+  const gitignorePath = path.join(outputDir, ".gitignore");
+  let contents = "";
+  try {
+    contents = await fs.readFile(gitignorePath, "utf8");
+  } catch {
+    // No .gitignore yet; we will create one.
+  }
+  const present = new Set(contents.split(/\r?\n/).map((line) => line.trim()));
+  const missing = entries.filter((entry) => entry && !present.has(entry));
+  if (!missing.length) return;
+  const prefix = contents && !contents.endsWith("\n") ? "\n" : "";
+  await fs.writeFile(gitignorePath, `${contents}${prefix}${missing.join("\n")}\n`, "utf8");
 }
 
 async function readResume(answers) {
