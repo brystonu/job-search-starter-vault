@@ -58,6 +58,14 @@ Each idea below is a problem statement plus a starter prompt. When one matches a
 
 > Ask: "Using the metrics fields in my weekly reviews, add a simple momentum note (or an Obsidian Base view) that shows applications, conversations, and follow-ups over the last four weeks."
 
+## 9. A job search pipeline
+
+**Problem:** Working a posting end to end - capture, score, decide, tailor - takes too many manual steps, and you want your assistant to carry it from URL to a ready-to-review decision.
+
+> Ask: "I want a job-search pipeline: give you a posting URL, you capture the posting, score it against my own weighted criteria, help me decide whether to apply, and tailor my resume if I do. First ask me what I actually weigh and how I decide, and tell me honestly whether you can fetch a URL yourself or need me to paste the text. Then build it in stages, checking in after each one: extend Job Posting Intake to capture postings; turn my criteria into a scoring rubric and update Job Fit Scoring to use it; add a clear apply/hold/skip decision policy to the Job Application template; wire resume tailoring to my Evidence Bank, never inventing evidence. Keep application decisions and outreach mine to send."
+
+This joins ideas #1 and #2 above into one flow, plus posting capture and a decision policy in between. Build those two first if you want to start smaller.
+
 ## Inventing your own
 
 The pattern behind every idea above: **name the friction, point at the evidence in your vault, ask for the smallest change.** If you can fill in this sentence, you have a quest: "Every week I ___, and I wish the vault would ___."
