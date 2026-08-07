@@ -62,9 +62,9 @@ Each idea below is a problem statement plus a starter prompt. When one matches a
 
 **Problem:** Working a posting end to end - capture, score, decide, tailor - takes too many manual steps, and you want your assistant to carry it from URL to a ready-to-review decision.
 
-> Ask: "I want a job-search pipeline: give you a posting URL, you capture the posting, score it against my own weighted criteria, help me decide whether to apply, and tailor my resume if I do. First ask me what I actually weigh and how I decide, and tell me honestly whether you can fetch a URL yourself or need me to paste the text. Then propose the stages this needs - posting capture, a scoring rubric, a decision policy, resume tailoring - but build only the first one now, per Vault Evolution's one-change-at-a-time rule. Stop after that, tell me what you built and how to undo it, and wait for me to come back for the next stage once I've used it for a while. Never invent evidence, and keep application decisions and outreach mine to send."
+> Ask: "I want a job-search pipeline: give you a posting URL, you capture the posting, score it against my own criteria, help me decide whether to apply, and tailor my resume if I do. Before asking me anything, look at my existing application notes and weekly reviews for a pattern in how I've actually judged roles, the way idea #1 does. Then check with me: does that match how I really weigh things, what's missing, and what does 'yes, apply' vs. 'hold' vs. 'skip' look like for me? Also tell me honestly whether you can fetch a URL yourself or need me to paste the text. Then propose the stages this needs - posting capture, a scoring rubric, a decision policy, resume tailoring - but build only the first one now, per Vault Evolution's one-change-at-a-time rule. Stop after that, tell me what you built and how to undo it, and wait for me to come back for the next stage once I've used it for a while. Never invent evidence, and keep application decisions and outreach mine to send."
 
-This joins ideas #1 and #2 above into one flow, plus posting capture and a decision policy in between. Build those two first if you want to start smaller.
+This joins ideas #1 and #2 above into one flow, plus posting capture and a decision policy in between. Start with #1 alone if you want the smallest possible first step.
 
 ## Inventing your own
 
